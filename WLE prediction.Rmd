@@ -1,0 +1,112 @@
+---
+title: "WLE Dataset Prediction"
+author: "Maksim K"
+date: "28 02 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Project description
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+
+In this project, my goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+
+The goal of this project is to predict the manner in which they did the exercise. This is the "classe" variable in the next training set:
+
+```{r}
+library(dplyr)
+library(caret)
+load("~/Desktop/R projects/WLE prediction/session.RData")
+trainData <- read.csv("pml-training.csv", header = T, sep =",", stringsAsFactors = FALSE)
+str(trainData)
+```
+
+Let's see variables frequency ratio and percent of unique variables in this dataset. 
+
+It also required to change the type of a variable "classe" as factor.
+
+```{r}
+trainData$classe <- as.factor(trainData$classe)
+nearZeroVar(trainData, saveMetrics = TRUE)
+```
+We see a lot of columns with null values or with values that are extremely rare.
+
+Let's continue with the following vars:
+
+```{r}
+training_ <-  select(trainData, one_of(c("roll_belt",
+                                     "pitch_belt",
+                                     "yaw_belt",
+                                     "magnet_belt_x",
+                                     "magnet_belt_y",
+                                     "magnet_belt_z",
+                                     "roll_arm",
+                                     "pitch_arm",
+                                     "yaw_arm",
+                                     "roll_dumbbell",
+                                     "pitch_dumbbell",
+                                     "yaw_dumbbell",
+                                     "roll_forearm",
+                                     "pitch_forearm",
+                                     "yaw_forearm",
+                                     "classe")))
+
+inTrain <- createDataPartition(y=training_$classe,
+                               p=0.7, list=FALSE)
+training <- training_[inTrain,]
+testing <- training_[-inTrain,]
+dim(training); dim(testing)
+```
+And in order to test our models we've sliced training set for trainset and testset.
+Testset with 20 cases will be used for final validation.
+
+Now let's see if this variables are correlated with different lifting modes.
+```{r}
+featurePlot(x=training[,c("magnet_belt_x","magnet_belt_y","magnet_belt_z", "classe")],y = training$classe,plot="pairs")
+
+featurePlot(x=training[,c("roll_forearm","pitch_forearm","yaw_forearm","classe")],y = training$classe,plot="pairs")
+
+featurePlot(x=training[,c("roll_arm","pitch_arm","yaw_arm","classe")],y = training$classe,plot="pairs")
+
+featurePlot(x=training[,c("roll_belt","pitch_belt","yaw_belt","classe")],y = training$classe,plot="pairs")
+
+featurePlot(x=training[,c("roll_dumbbell","pitch_dumbbell","yaw_dumbbell","classe")],y = training$classe,plot="pairs")
+```
+These variables are clearly similar with the description of modes.
+For example, we can see it on the pitch forearm for mode C. - lifting the dumbbell only halfway
+
+Let's try to create the following models:
+```{r, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+set.seed(100500)
+fit_rf <- train(classe ~., training, "rf")
+fit_lda <- train(classe ~., training, "lda")
+fit_nb <- train(classe ~., training, "nb")
+```
+
+Predicting "classe" for testing set.
+
+```{r, message=FALSE, warning=FALSE, include=FALSE}
+pred_rf <- predict(fit_rf,testing)
+pred_lda <- predict(fit_lda,testing)
+pred_nb <- predict(fit_nb,testing)
+```
+
+Verifying the quality of the models
+```{r}
+confusionMatrix(pred_rf, testing$classe)
+confusionMatrix(pred_lda, testing$classe)
+confusionMatrix(pred_nb, testing$classe)
+```
+The best result - RandomForest.
+
+Predicting of set with 20 test cases
+```{r}
+test20 <- read.csv("pml-testing.csv", header = T, sep =",", stringsAsFactors = FALSE)
+pred_final <- predict(fit_rf, test20)
+pred_final
+```
+
